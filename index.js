@@ -23,7 +23,47 @@ function isEmpty(obj) {
 }
 
 app.get("/", (req, res) => {
-  res.send(`<h1 style="text-align:center;">Hall Booking API</h1>`);
+  res.send(`    
+    <h1 style="text-align: center">Hall Booking API</h1>
+    <p>Try API enpoints:</p>
+    <p>Base url: http://localhost:3000/</p>
+
+    <ol style="display: flex; flex-direction: column; gap: 0.5rem">
+      <li>/room/all (GET) - Show all created rooms</li>
+      <li>
+        <div style="display: flex; gap: 0.5rem">
+          <span style="min-width: fit-content;">/room/create (POST) - </span>
+          <span>
+            Create room with eg. 
+            { 
+              "number_of_available_seats": 150, 
+              "amenities": ["WiFi", "Well-Maintained Restrooms", "Parking","Audio-Visual
+              Equipment","Catering Services"], 
+              "price_per_hour": 190 
+            }
+          </span>
+        </div>
+      </li>
+      <li>/room/edit/:id (PUT) -  Edit room</li>
+      <li>/room/delete/:id (DELETE) -  Delete room</li>
+      <li>        
+        <div style="display: flex; gap: 0.5rem">
+          <span style="min-width: fit-content;">/room/booking (POST) - </span>
+          <span>
+            Book a room with eg. 
+            {
+              "customer_name": "name",
+              "start_time": "1 AM",
+              "end_time": "7 PM",
+              "roomId": 1
+            }
+          </span>
+        </div>
+      </li>
+      <li>/room/bookedRooms (GET) - List all Rooms with Booked Data</li>
+      <li>/room/bookedCount (GET) - List how many times a customer has booked the room</li>
+    </ol>
+    `);
 });
 
 // Room
@@ -55,6 +95,17 @@ app.post("/room/create", (req, res) => {
 // Edit Room
 app.put("/room/edit/:id", (req, res) => {
   const _id = req.params.id;
+  const reqBody = req.body;
+  if (
+    !reqBody.number_of_available_seats ||
+    !reqBody.amenities ||
+    !reqBody.price_per_hour
+  ) {
+    return res.json({
+      message:
+        "number_of_available_seats, amenities and price_per_hour are required",
+    });
+  }
   const findRoom = rooms.find((room) => room._id == _id);
   if (isEmpty(findRoom)) {
     return res.json({ message: "No room found in this ID" });
@@ -111,6 +162,9 @@ function checkAlreadyBooked(
 
 // Booking a Room
 app.post("/room/booking", (req, res) => {
+  if (!rooms.length) {
+    return res.json({ message: "No rooms found. Create a room!" });
+  }
   const reqBody = req.body;
   const currentDate = new Date().toJSON().slice(0, 10);
   let flag;
@@ -156,6 +210,9 @@ app.post("/room/booking", (req, res) => {
 
 // List all Rooms with Booked Data
 app.get("/room/bookedRooms", (req, res) => {
+  if (!rooms.length) {
+    return res.json({ message: "No rooms found. Create a room!" });
+  }
   if (roomBooking.length == 0) {
     return res.json({ message: "No customers have booked the room." });
   }
@@ -195,6 +252,9 @@ app.get("/room/bookedRooms", (req, res) => {
 app.get("/room/bookedCount", (req, res) => {
   if (rooms.length == 0) {
     return res.send({ message: "No Rooms found. Create a Room!" });
+  }
+  if (roomBooking.length == 0) {
+    return res.json({ message: "No customers have booked the room." });
   }
   if (customerWithBookedData.length > 0) {
     customerWithBookedData = [];
