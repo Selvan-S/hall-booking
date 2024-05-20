@@ -12,6 +12,7 @@ let rooms = [];
 let roomBooking = [];
 let bookedRooms = [];
 let customerWithBookedData = [];
+let allBookedRooms = [];
 function isEmpty(obj) {
   for (const prop in obj) {
     if (Object.hasOwn(obj, prop)) {
@@ -36,6 +37,7 @@ app.get("/", (req, res) => {
           <span>
             Create room with eg. 
             { 
+              "room_name": "CS VIP Hall",
               "number_of_available_seats": 150, 
               "amenities": ["WiFi", "Well-Maintained Restrooms", "Parking","Audio-Visual
               Equipment","Catering Services"], 
@@ -60,7 +62,8 @@ app.get("/", (req, res) => {
           </span>
         </div>
       </li>
-      <li>/room/bookedRooms (GET) - List all Rooms with Booked Data</li>
+      <li>/room/allBookedRooms (GET) - List all Rooms with Booked Data</li>
+      <li>/room/bookedRooms (GET) - List all customers with Booked Data</li>
       <li>/room/bookedCount (GET) - List how many times a customer has booked the room</li>
     </ol>
     `);
@@ -78,13 +81,14 @@ app.get("/room/all", (req, res) => {
 app.post("/room/create", (req, res) => {
   const reqBody = req.body;
   if (
+    !reqBody.room_name ||
     !reqBody.number_of_available_seats ||
     !reqBody.amenities ||
     !reqBody.price_per_hour
   ) {
     return res.json({
       message:
-        "number_of_available_seats, amenities and price_per_hour are required",
+        "room_name, number_of_available_seats, amenities and price_per_hour are required",
     });
   }
   const newRoom = { _id: rooms.length + 1, ...req.body };
@@ -97,13 +101,14 @@ app.put("/room/edit/:id", (req, res) => {
   const _id = req.params.id;
   const reqBody = req.body;
   if (
+    !reqBody.room_name ||
     !reqBody.number_of_available_seats ||
     !reqBody.amenities ||
     !reqBody.price_per_hour
   ) {
     return res.json({
       message:
-        "number_of_available_seats, amenities and price_per_hour are required",
+        "room_name, number_of_available_seats, amenities and price_per_hour are required",
     });
   }
   const findRoom = rooms.find((room) => room._id == _id);
@@ -204,11 +209,64 @@ app.post("/room/booking", (req, res) => {
     };
     roomBooking = [...roomBooking, newBookedRoom];
     flag = false;
-    return res.json({ newBookedRoom: newBookedRoom });
+    return res.json({
+      message: "Hall booked successfully",
+      newBookedRoom: newBookedRoom,
+    });
   }
 });
 
 // List all Rooms with Booked Data
+app.get("/room/allBookedRooms", (req, res) => {
+  if (rooms.length == 0) {
+    return res.send({ message: "No Rooms found. Create a Room!" });
+  }
+  if (roomBooking.length == 0) {
+    return res.json({ message: "No customers have booked the room." });
+  }
+  if (allBookedRooms.length > 0) {
+    allBookedRooms = [];
+  }
+  let filteredcustomerByBookedRoom = {};
+  rooms.forEach((room) => {
+    let filterRoom = roomBooking.filter(
+      (customerRoom) => room._id == customerRoom.roomId
+    );
+
+    let customers_as_per_room = [];
+
+    filterRoom.forEach((customer) => {
+      customers_as_per_room.push({
+        room_name: room.room_name,
+        booked_status: "booked",
+        customer_name: customer.customer_name,
+        date: customer.date,
+        start_time: customer.start_time,
+        end_time: customer.end_time,
+      });
+    });
+    filteredcustomerByBookedRoom[room.room_name] = customers_as_per_room;
+    if (filterRoom.length == 0) {
+      filteredcustomerByBookedRoom[room.room_name] = {
+        room_name: room.room_name,
+        booked_status: "not booked",
+        customer_name: "N/A",
+        date: "N/A",
+        start_time: "N/A",
+        end_time: "N/A",
+      };
+    }
+  });
+  if (!isEmpty(filteredcustomerByBookedRoom)) {
+    allBookedRooms.push(filteredcustomerByBookedRoom);
+  }
+  return res.json({
+    message: "Successfully listed, all Rooms with Booked Data",
+    data: allBookedRooms,
+  });
+});
+
+// List all customers with Booked Data
 app.get("/room/bookedRooms", (req, res) => {
   if (!rooms.length) {
     return res.json({ message: "No rooms found. Create a room!" });
@@ -233,19 +291,32 @@ app.get("/room/bookedRooms", (req, res) => {
         removedDuplicateCustomerName.push(filRoom.customer_name);
       }
     });
+
     removedDuplicateCustomerName.forEach((customerName) => {
       let filterCustomerByCustomerName = roomBooking.filter(
         (customerRoom) => customerRoom.customer_name == customerName
       );
 
-      filteredCustomerByCustomerName[customerName] =
-        filterCustomerByCustomerName;
+      let addRoomName = [];
+      filterCustomerByCustomerName.forEach((customer) =>
+        addRoomName.push({
+          customer_name: customer.customer_name,
+          room_name: room.room_name,
+          date: customer.date,
+          start_time: customer.start_time,
+          end_time: customer.end_time,
+        })
+      );
+      filteredCustomerByCustomerName[customerName] = addRoomName;
     });
   });
   if (!isEmpty(filteredCustomerByCustomerName)) {
     bookedRooms.push(filteredCustomerByCustomerName);
   }
-  return res.json({ customerWithBookedData: bookedRooms });
+  return res.json({
+    message: "Successfully listed, all customer with booked data",
+    data: bookedRooms,
+  });
 });
 
 // List how many times a customer has booked the room
@@ -259,41 +330,53 @@ app.get("/room/bookedCount", (req, res) => {
   if (customerWithBookedData.length > 0) {
     customerWithBookedData = [];
   }
+  let filteredcustomerByBookedRoom = {};
   rooms.forEach((room) => {
-    let filterRoom = roomBooking.filter(
+    let filterCustomerByRoomId = roomBooking.filter(
       (customerRoom) => room._id == customerRoom.roomId
     );
 
-    let tempBookedRooms = {
-      room_name: "",
-      booked_status: [],
-      customer_name: [],
-      date: [],
-      start_time: [],
-      end_time: [],
-    };
-    filterRoom.forEach((froom) => {
-      tempBookedRooms.room_name = room._id;
-      tempBookedRooms.booked_status.push(true);
-      tempBookedRooms.customer_name.push(froom.customer_name);
-      tempBookedRooms.date.push(froom.date);
-      tempBookedRooms.start_time.push(froom.start_time);
-      tempBookedRooms.end_time.push(froom.end_time);
+    let filterDuplicateCustomerName = {};
+    let removedDuplicateCustomerName = [];
+
+    filterCustomerByRoomId.forEach((filRoom) => {
+      if (!filterDuplicateCustomerName.hasOwnProperty(filRoom.customer_name)) {
+        filterDuplicateCustomerName[filRoom.customer_name] = true;
+        removedDuplicateCustomerName.push(filRoom.customer_name);
+      }
     });
-    if (tempBookedRooms.room_name != "") {
-      customerWithBookedData.push(tempBookedRooms);
-    } else {
-      customerWithBookedData.push({
-        room_name: room._id,
-        booked_status: false,
-        customer_name: "N/A",
-        date: "N/A",
-        start_time: "N/A",
-        end_time: "N/A",
-      });
-    }
+    removedDuplicateCustomerName.forEach((customerName) => {
+      let filterCustomerByCustomerName = roomBooking.filter(
+        (customerRoom) => customerRoom.customer_name == customerName
+      );
+
+      let addRoomName = [];
+      filterCustomerByCustomerName.forEach((customer) =>
+        addRoomName.push({
+          customer_name: customer.customer_name,
+          room_name: room.room_name,
+          date: customer.date,
+          start_time: customer.start_time,
+          end_time: customer.end_time,
+          bookingId: customer._id,
+          booking_date: customer.date,
+          booked_status: "booked",
+        })
+      );
+      filteredcustomerByBookedRoom[customerName] = [
+        { booking_count: addRoomName.length },
+        ...addRoomName,
+      ];
+    });
   });
-  return res.json({ rooms_that_customer_booked: customerWithBookedData });
+  if (!isEmpty(filteredcustomerByBookedRoom)) {
+    customerWithBookedData.push(filteredcustomerByBookedRoom);
+  }
+  return res.json({
+    message:
+      "Successfully listed, how many times a customer has booked the room",
+    data: customerWithBookedData,
+  });
 });
 
 // Activating and listening server
